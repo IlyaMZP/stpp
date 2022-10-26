@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# FIXME: Handle ctrl+c gracefully
 killall stunnel_thread
 
 STUNNEL="/opt/cprocsp/sbin/amd64/stunnel_thread"
@@ -135,15 +136,8 @@ else
 	sudo ip route replace default via 10.0.8.1
 fi
 
-# I'm not sure how to properly catch a keyboard interrupt.
-# Right now Ctrl+C kills a child process and the script with it, leaving
-# some junk behind.
-function cleanup {
-	sudo kill PPPD_PID
-	kill $(cat $WORK_DIR/stunnel.pid) 2>/dev/null
-  sudo rm -rf "$WORK_DIR"
-}
-trap cleanup EXIT
-trap cleanup INT
-trap cleanup QUIT
-trap cleanup TSTP
+sudo kill $PPPD_PID
+kill $(cat $WORK_DIR/stunnel.pid) 2>/dev/null
+rm -r "$WORK_DIR"
+
+trap ' ' INT
