@@ -1,0 +1,149 @@
+#!/bin/bash
+
+killall stunnel_thread
+
+STUNNEL="/opt/cprocsp/sbin/amd64/stunnel_thread"
+CERTMGR="/opt/cprocsp/bin/amd64/certmgr"
+
+# Ugh, debian...
+# FIXME: Find a better solution to find pppd executable
+PATH=$PATH:/usr/sbin/
+
+# Default values
+VERIFY=0
+PORT=1234
+
+# https://stackoverflow.com/questions/192249/how-do-i-parse-command-line-arguments-in-bash
+# I'd love to have values space separated
+# But that's a task for a future me
+# TODO: Allow user to specify values without = sign
+for i in "$@"; do
+  case $i in
+    -c=*|--certificate=*)
+      CERTIFICATE="${i#*=}"
+      shift # past argument=value
+      ;;
+    -a=*|--addr=*)
+      HOST="${i#*=}"
+      shift # past argument=value
+      ;;
+    -p=*|--port=*)
+      PORT="${i#*=}"
+      shift # past argument=value
+      ;;
+    -v=*|--verify=*)
+      VERIFY="${i#*=}"
+      shift # past argument=value
+      ;;
+    --server)
+      SERVER=1
+      shift # past argument with no value
+      ;;
+    --help)
+      echo "  -c=, --certificate=<cert> - Specify the certificate path or thumbprint"
+      echo "  -a=, --addr=<address>     - Specify the address or hostname of server (client mode)"
+      echo "  -p=, --port=<port>        - Specify the server/client port number"
+      echo "  -v=, --verify=<level>     - Specify the verify level for stunnel"
+			echo "  --server                  - Start in server mode"
+      exit 0
+      ;;
+    -*|--*)
+      echo "Unknown option $i"
+      exit 1
+      ;;
+    *)
+      ;;
+  esac
+done
+
+if [ -z "$(which socat 2>/dev/null)" ]; then
+	echo "Couldn't find 'socat'"
+	echo "Please, install socat package"
+	exit 1
+fi
+
+if [ -z "$(which pppd 2>/dev/null)" ]; then
+	echo "Couldn't find 'pppd'"
+	echo "Please, install ppp package"
+	exit 1
+fi
+
+if [ ! -x "$STUNNEL" ]; then
+	echo "Couldn't find 'stunnel'"
+	echo "Please, install CryptoPro CSP"
+	exit 1
+fi
+
+WORK_DIR=`mktemp -d -p /tmp/`
+STUNNEL_CONF="$WORK_DIR/stunnel.conf"
+
+# AFAIK it should be possible to specify certificate thumbprint in stunnel
+# directly, but that didn't work.
+# Maybe it's specific to windows version or stunnel_msspi
+# Anyways, this works too.
+if echo "$CERTIFICATE" | grep -oiEe "[0-9a-f]{40}">/dev/null; then
+	certmgr -export -thumbprint "$CERTIFICATE" -dest $WORK_DIR/certificate.cer >/dev/null && CERTIFICATE="$WORK_DIR/certificate.cer"
+fi
+
+
+if [[ $SERVER -eq 1 ]]; then
+	if [ ! -r "$CERTIFICATE" ]; then
+		echo "Can't acces the certificate file"
+		exit 1
+	fi
+	echo "pid=$WORK_DIR/stunnel.pid" > $STUNNEL_CONF
+	echo "output=$WORK_DIR/stunnel.log" >> $STUNNEL_CONF
+	echo "socket = l:TCP_NODELAY=1" >> $STUNNEL_CONF
+	echo "[pppd]" >> $STUNNEL_CONF
+	echo "accept=0.0.0.0:$PORT" >> $STUNNEL_CONF
+	echo "connect=$WORK_DIR/pppd.sock" >> $STUNNEL_CONF
+	echo "cert=$CERTIFICATE" >> $STUNNEL_CONF
+	echo "verify=$VERIFY" >> $STUNNEL_CONF
+else
+	echo "pid=$WORK_DIR/stunnel.pid" > $STUNNEL_CONF
+	echo "output=$WORK_DIR/stunnel.log" >> $STUNNEL_CONF
+	echo "socket = r:TCP_NODELAY=1" >> $STUNNEL_CONF
+	echo "[pppd]" >> $STUNNEL_CONF
+	echo "client=yes" >> $STUNNEL_CONF
+	echo "accept=$WORK_DIR/pppd.sock" >> $STUNNEL_CONF
+	echo "connect=$HOST:$PORT" >> $STUNNEL_CONF
+	echo "verify=$VERIFY" >> $STUNNEL_CONF
+	if [ -r "$CERTIFICATE" ]; then
+		echo "cert=$CERTIFICATE" >> $STUNNEL_CONF
+		echo "WARN: No client certificate specified"
+	fi
+fi
+
+$STUNNEL $STUNNEL_CONF
+
+if [[ $SERVER -eq 1 ]]; then
+	# Make sure we set net.ipv4.ip_forward and MASQUERADE for traffic to be forwarded
+	sudo sysctl -w net.ipv4.ip_forward=1
+	sudo iptables -t nat -A POSTROUTING -o $(ip route | awk '/default/ { print $5 }') -j MASQUERADE
+	sudo pppd nodetach noauth nodeflate passive pty "socat - UNIX-LISTEN:$WORK_DIR/pppd.sock" &
+	PPPD_PID=$!
+	sudo chown $USER $WORK_DIR/pppd.sock
+else
+	GATEWAY_IP=$(ip route | awk '/default/ { print $3 }')
+	# Resolve remote IP if a hostname or DNS name is specified
+	REMOTE_GATEWAY=$(getent ahostsv4 $HOST | awk '{ print $1 ; exit }')
+	# Add rote to remote gateway since the defualt gateway will be replace later
+	sudo ip route add $REMOTE_GATEWAY via $GATEWAY_IP
+	sudo pppd nodetach noauth silent nodeflate pty "socat - UNIX-CONNECT:$WORK_DIR/pppd.sock" ipparam vpn 10.0.8.2:10.0.8.1
+	PPPD_PID=$!
+	# Replace default gateway with remote gateway to route all traffic through it
+	sudo ip route replace default via 10.0.8.1
+fi
+
+# I'm not sure how to properly catch a keyboard interrupt.
+# Right now Ctrl+C kills a child process and the script with it, leaving
+# some junk behind.
+function cleanup {
+	sudo kill PPPD_PID
+	kill $(cat $WORK_DIR/stunnel.pid) 2>/dev/null
+  sudo rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT
+trap cleanup INT
+trap cleanup QUIT
+trap cleanup TSTP
