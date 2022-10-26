@@ -6,7 +6,7 @@ On the server side just run:
 
 `stpp --server -p=1234 -v=2 -c=2DF3BD26617D64AA89F850862D11D8B660CF24FE`
 
-Where `1234` is the port to listen on, `2` is the verification level for stunnel and `2DF3BD26617D64AA89F850862D11D8B660CF24FE` is a certificate thumbprint. A certificate path may be specified insted.
+Where `1234` is the port to listen on, `2` is the verification level for stunnel and `2DF3BD26617D64AA89F850862D11D8B660CF24FE` is a certificate thumbprint. A certificate path may be specified instead.
 
 On the client side run:
 
