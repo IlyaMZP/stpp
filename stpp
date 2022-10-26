@@ -121,11 +121,11 @@ if [[ $SERVER -eq 1 ]]; then
 	# Make sure we set net.ipv4.ip_forward and MASQUERADE for traffic to be forwarded
 	sudo sysctl -w net.ipv4.ip_forward=1
 	sudo iptables -t nat -A POSTROUTING -o $(ip route | awk '/default/ { print $5 }') -j MASQUERADE
-	sudo pppd nodetach noauth nodeflate passive pty "socat - UNIX-LISTEN:$WORK_DIR/pppd.sock" &
+	sudo pppd nodetach persist noauth nodeflate passive pty "socat - UNIX-LISTEN:$WORK_DIR/pppd.sock" &
 	PPPD_PID=$!
 	sleep 0.5
 	sudo chown $USER:$USER $WORK_DIR/pppd.sock
-	tail -f $WORK_DIR/stunnel.log
+	tail -f $WORK_DIR/stunnel.log &
 else
 	GATEWAY_IP=$(ip route | awk '/default/ { print $3 }')
 	# Resolve remote IP if a hostname or DNS name is specified
@@ -136,11 +136,20 @@ else
 	PPPD_PID=$!
 	# Replace default gateway with remote gateway to route all traffic through it
 	sudo ip route replace default via 10.0.8.1
-	tail -f $WORK_DIR/stunnel.log
+	tail -f $WORK_DIR/stunnel.log &
 fi
 
-sudo kill $PPPD_PID
-kill $(cat $WORK_DIR/stunnel.pid) 2>/dev/null
-rm -r "$WORK_DIR"
+while [ true ] ; do
+	read -t 3 -n 1
+	if [ $? = 0 ] ; then
+		sudo kill $PPPD_PID
+		kill $(cat $WORK_DIR/stunnel.pid) 2>/dev/null
+		rm -r "$WORK_DIR"
+	else
+		# This is another very hacky solution to another problem
+		# When client disconnects, pppd restarts socat, recreating socket file.
+		if [[ $SERVER -eq 1 ]]; then sudo chown $USER:$USER $WORK_DIR/pppd.sock; fi
+	fi
+done
 
 trap ' ' INT
