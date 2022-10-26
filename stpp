@@ -123,17 +123,20 @@ if [[ $SERVER -eq 1 ]]; then
 	sudo iptables -t nat -A POSTROUTING -o $(ip route | awk '/default/ { print $5 }') -j MASQUERADE
 	sudo pppd nodetach noauth nodeflate passive pty "socat - UNIX-LISTEN:$WORK_DIR/pppd.sock" &
 	PPPD_PID=$!
-	sudo chown $USER $WORK_DIR/pppd.sock
+	sleep 0.5
+	sudo chown $USER:$USER $WORK_DIR/pppd.sock
+	tail -f $WORK_DIR/stunnel.log
 else
 	GATEWAY_IP=$(ip route | awk '/default/ { print $3 }')
 	# Resolve remote IP if a hostname or DNS name is specified
 	REMOTE_GATEWAY=$(getent ahostsv4 $HOST | awk '{ print $1 ; exit }')
 	# Add rote to remote gateway since the defualt gateway will be replace later
 	sudo ip route add $REMOTE_GATEWAY via $GATEWAY_IP
-	sudo pppd nodetach noauth silent nodeflate pty "socat - UNIX-CONNECT:$WORK_DIR/pppd.sock" ipparam vpn 10.0.8.2:10.0.8.1
+	sudo pppd nodetach noauth silent nodeflate pty "socat - UNIX-CONNECT:$WORK_DIR/pppd.sock" ipparam vpn 10.0.8.2:10.0.8.1 &
 	PPPD_PID=$!
 	# Replace default gateway with remote gateway to route all traffic through it
 	sudo ip route replace default via 10.0.8.1
+	tail -f $WORK_DIR/stunnel.log
 fi
 
 sudo kill $PPPD_PID
