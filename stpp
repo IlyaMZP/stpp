@@ -42,7 +42,7 @@ for i in "$@"; do
       echo "  -a=, --addr=<address>     - Specify the address or hostname of server (client mode)"
       echo "  -p=, --port=<port>        - Specify the server/client port number"
       echo "  -v=, --verify=<level>     - Specify the verify level for stunnel"
-			echo "  --server                  - Start in server mode"
+      echo "  --server                  - Start in server mode"
       exit 0
       ;;
     -*|--*)
