@@ -132,7 +132,7 @@ else
 	REMOTE_GATEWAY=$(getent ahostsv4 $HOST | awk '{ print $1 ; exit }')
 	# Add rote to remote gateway since the defualt gateway will be replace later
 	sudo ip route add $REMOTE_GATEWAY via $GATEWAY_IP
-	sudo pppd nodetach noauth silent nodeflate pty "socat - UNIX-CONNECT:$WORK_DIR/pppd.sock" ipparam vpn 10.0.8.2:10.0.8.1 &
+	sudo pppd updetach noauth silent nodeflate pty "socat - UNIX-CONNECT:$WORK_DIR/pppd.sock" ipparam vpn 10.0.8.2:10.0.8.1
 	PPPD_PID=$!
 	# Replace default gateway with remote gateway to route all traffic through it
 	sudo ip route replace default via 10.0.8.1
