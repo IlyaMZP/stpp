@@ -2,6 +2,8 @@
 A small script to atomate creation of a VPN tunnel based on stunnel (cryptopro fork) and pppd.
 
 # Example usage
+The script is meant to be run as user and depends on sudo to elevate permissions.
+
 On the server side just run:
 
 `stpp --server -p=1234 -v=2 -c=2DF3BD26617D64AA89F850862D11D8B660CF24FE`
