@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# FIXME: Handle ctrl+c gracefully
-killall stunnel_thread
-
 STUNNEL="/opt/cprocsp/sbin/amd64/stunnel_thread"
 CERTMGR="/opt/cprocsp/bin/amd64/certmgr"
 

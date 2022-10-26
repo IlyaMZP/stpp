@@ -15,3 +15,5 @@ On the client side run:
 `stpp -p=1234 -a=192.168.235.130 -v=0`
 
 You may specify a certificate with the same argument for two-way TLS.
+
+Pressing any key stops the script.
