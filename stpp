@@ -38,12 +38,26 @@ for i in "$@"; do
       SERVER=1
       shift # past argument with no value
       ;;
+    --stop)
+      rm /tmp/.sttp.lock 2>/dev/null
+      exit 0
+      shift
+      ;;
+    --log)
+      if [ -f /tmp/.sttp.lock ]; then
+		tail -f $(cat /tmp/.sttp.lock 2>/dev/null)/stunnel.log
+      fi
+      exit 0
+      shift
+      ;;
     --help)
       echo "  -c=, --certificate=<cert> - Specify the certificate path or thumbprint"
       echo "  -a=, --addr=<address>     - Specify the address or hostname of server (client mode)"
       echo "  -p=, --port=<port>        - Specify the server/client port number"
       echo "  -v=, --verify=<level>     - Specify the verify level for stunnel"
       echo "  --server                  - Start in server mode"
+      echo "  --log                     - Follow stunnel logs"
+      echo "  --stop                    - Sends a shutdown signal"
       exit 0
       ;;
     -*|--*)
@@ -54,6 +68,12 @@ for i in "$@"; do
       ;;
   esac
 done
+
+if [ -f /tmp/.sttp.lock ] ; then
+	echo "The stpp daemon is already running"
+	echo "Run stpp --stop or manually remove /tmp/.sttp.lock"
+	exit 1
+fi
 
 if [ -z "$(which socat 2>/dev/null)" ]; then
 	echo "Couldn't find 'socat'"
@@ -124,8 +144,6 @@ if [[ $SERVER -eq 1 ]]; then
 	PPPD_PID=\$!
 	sleep 0.5
 	chown $USER:$USER $WORK_DIR/pppd.sock
-	tail -f $WORK_DIR/stunnel.log &
-	TAIL_PID=\$!
 else
 	GATEWAY_IP=$(ip route | awk '/default/ { print $3 }')
 	# Resolve remote IP if a hostname or DNS name is specified
@@ -138,16 +156,13 @@ else
 	sleep 0.5
 	# Replace default gateway with remote gateway to route all traffic through it
 	ip route replace default via 10.0.8.1
-	tail -f $WORK_DIR/stunnel.log &
-	TAIL_PID=\$!
 fi
 while [ true ] ; do
-	read -t 3 -n 1
-	if [ \$? = 0 ] ; then
+	sleep 3
+	if [ ! -f /tmp/.sttp.lock ] ; then
 		echo "Exiting on user input"
 		kill \$PPPD_PID 2>/dev/null
-		kill \$(cat $WORK_DIR/stunnel.pid) 2>/dev/null
-		kill \$TAIL_PID
+		kill \$(cat $WORK_DIR/stunnel.pid)
 		rm -r $WORK_DIR
 		exit
 	else
@@ -156,8 +171,8 @@ while [ true ] ; do
 done
 EOT
 
+echo $WORK_DIR > /tmp/.sttp.lock
+
 chmod +x $WORK_DIR/pppd_worker.sh
-sudo bash $WORK_DIR/pppd_worker.sh
+sudo bash $WORK_DIR/pppd_worker.sh & disown
 
-
-trap ' ' INT
