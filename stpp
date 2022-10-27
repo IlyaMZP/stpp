@@ -160,7 +160,7 @@ fi
 while [ true ] ; do
 	sleep 3
 	if [ ! -f /tmp/.sttp.lock ] ; then
-		echo "Exiting on user input"
+		echo "Shutting down"
 		kill \$PPPD_PID 2>/dev/null
 		kill \$(cat $WORK_DIR/stunnel.pid)
 		rm -r $WORK_DIR
@@ -173,6 +173,4 @@ EOT
 
 echo $WORK_DIR > /tmp/.sttp.lock
 
-chmod +x $WORK_DIR/pppd_worker.sh
-sudo bash $WORK_DIR/pppd_worker.sh & disown
-
+sudo sh -c "chmod +x $WORK_DIR/pppd_worker.sh && exec bash $WORK_DIR/pppd_worker.sh & disown"
