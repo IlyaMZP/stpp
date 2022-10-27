@@ -133,6 +133,8 @@ else
 	ip route add \$REMOTE_GATEWAY via \$GATEWAY_IP
 	pppd updetach noauth silent nodeflate pty "socat - UNIX-CONNECT:$WORK_DIR/pppd.sock" ipparam vpn 10.0.8.2:10.0.8.1
 	PPPD_PID=\$!
+	# Wait a bit more to make sure that ppp0 interface is initialized
+	sleep 0.5
 	# Replace default gateway with remote gateway to route all traffic through it
 	ip route replace default via 10.0.8.1
 	tail -f $WORK_DIR/stunnel.log &
