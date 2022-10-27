@@ -125,6 +125,7 @@ if [[ $SERVER -eq 1 ]]; then
 	sleep 0.5
 	chown $USER:$USER $WORK_DIR/pppd.sock
 	tail -f $WORK_DIR/stunnel.log &
+	TAIL_PID=\$!
 else
 	GATEWAY_IP=$(ip route | awk '/default/ { print $3 }')
 	# Resolve remote IP if a hostname or DNS name is specified
@@ -138,6 +139,7 @@ else
 	# Replace default gateway with remote gateway to route all traffic through it
 	ip route replace default via 10.0.8.1
 	tail -f $WORK_DIR/stunnel.log &
+	TAIL_PID=\$!
 fi
 while [ true ] ; do
 	read -t 3 -n 1
@@ -145,6 +147,7 @@ while [ true ] ; do
 		echo "Exiting on user input"
 		kill \$PPPD_PID 2>/dev/null
 		kill \$(cat $WORK_DIR/stunnel.pid) 2>/dev/null
+		kill \$TAIL_PID
 		rm -r $WORK_DIR
 		exit
 	else
