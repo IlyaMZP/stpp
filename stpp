@@ -151,9 +151,7 @@ while [ true ] ; do
 		rm -r $WORK_DIR
 		exit
 	else
-		# This is another very hacky solution to another problem
-		# When client disconnects, pppd restarts socat, recreating socket file.
-		if [ ! -O $WORK_DIR/pppd.sock ]; then chown $USER:$USER $WORK_DIR/pppd.sock; fi
+		if [[ $SERVER -eq 1 ]]; then chown $USER:$USER $WORK_DIR/pppd.sock; fi
 	fi
 done
 EOT
