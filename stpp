@@ -121,7 +121,7 @@ if [[ $SERVER -eq 1 ]]; then
 	sysctl -w net.ipv4.ip_forward=1
 	iptables -t nat -A POSTROUTING -o $(ip route | awk '/default/ { print $5 }') -j MASQUERADE
 	pppd nodetach persist noauth nodeflate passive pty "socat - UNIX-LISTEN:$WORK_DIR/pppd.sock" &
-	PPPD_PID=$!
+	PPPD_PID=\$!
 	sleep 0.5
 	chown $USER:$USER $WORK_DIR/pppd.sock
 	tail -f $WORK_DIR/stunnel.log &
@@ -132,7 +132,7 @@ else
 	# Add rote to remote gateway since the defualt gateway will be replace later
 	ip route add \$REMOTE_GATEWAY via \$GATEWAY_IP
 	pppd updetach noauth silent nodeflate pty "socat - UNIX-CONNECT:$WORK_DIR/pppd.sock" ipparam vpn 10.0.8.2:10.0.8.1
-	PPPD_PID=$!
+	PPPD_PID=\$!
 	# Replace default gateway with remote gateway to route all traffic through it
 	ip route replace default via 10.0.8.1
 	tail -f $WORK_DIR/stunnel.log &
