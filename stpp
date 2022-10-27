@@ -10,6 +10,7 @@ PATH=$PATH:/usr/sbin/
 # Default values
 VERIFY=0
 PORT=1234
+SERVER=0
 
 # https://stackoverflow.com/questions/192249/how-do-i-parse-command-line-arguments-in-bash
 # I'd love to have values space separated
