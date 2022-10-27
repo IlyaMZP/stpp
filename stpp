@@ -93,6 +93,11 @@ if [ ! -x "$STUNNEL" ]; then
 	exit 1
 fi
 
+if [ -z $HOST ]; then
+	echo "Please, specify the adreess to connect to"
+	exit 1
+fi
+
 WORK_DIR=`mktemp -d -p /tmp/`
 STUNNEL_CONF="$WORK_DIR/stunnel.conf"
 
