@@ -154,7 +154,7 @@ done
 EOT
 
 chmod +x $WORK_DIR/pppd_worker.sh
-sudo $WORK_DIR/pppd_worker.sh
+sudo bash $WORK_DIR/pppd_worker.sh
 
 
 trap ' ' INT
