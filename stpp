@@ -114,40 +114,46 @@ fi
 
 $STUNNEL $STUNNEL_CONF
 
+cat <<EOT >> $WORK_DIR/pppd_worker.sh
 if [[ $SERVER -eq 1 ]]; then
 	# Make sure we set net.ipv4.ip_forward and MASQUERADE for traffic to be forwarded
-	sudo sysctl -w net.ipv4.ip_forward=1
-	sudo iptables -t nat -A POSTROUTING -o $(ip route | awk '/default/ { print $5 }') -j MASQUERADE
-	sudo pppd nodetach persist noauth nodeflate passive pty "socat - UNIX-LISTEN:$WORK_DIR/pppd.sock" &
+	sysctl -w net.ipv4.ip_forward=1
+	iptables -t nat -A POSTROUTING -o $(ip route | awk '/default/ { print $5 }') -j MASQUERADE
+	pppd nodetach persist noauth nodeflate passive pty "socat - UNIX-LISTEN:$WORK_DIR/pppd.sock" &
 	PPPD_PID=$!
 	sleep 0.5
-	sudo chown $USER:$USER $WORK_DIR/pppd.sock
+	chown $USER:$USER $WORK_DIR/pppd.sock
 	tail -f $WORK_DIR/stunnel.log &
 else
 	GATEWAY_IP=$(ip route | awk '/default/ { print $3 }')
 	# Resolve remote IP if a hostname or DNS name is specified
 	REMOTE_GATEWAY=$(getent ahostsv4 $HOST | awk '{ print $1 ; exit }')
 	# Add rote to remote gateway since the defualt gateway will be replace later
-	sudo ip route add $REMOTE_GATEWAY via $GATEWAY_IP
-	sudo pppd updetach noauth silent nodeflate pty "socat - UNIX-CONNECT:$WORK_DIR/pppd.sock" ipparam vpn 10.0.8.2:10.0.8.1
+	ip route add \$REMOTE_GATEWAY via \$GATEWAY_IP
+	pppd updetach noauth silent nodeflate pty "socat - UNIX-CONNECT:$WORK_DIR/pppd.sock" ipparam vpn 10.0.8.2:10.0.8.1
 	PPPD_PID=$!
 	# Replace default gateway with remote gateway to route all traffic through it
-	sudo ip route replace default via 10.0.8.1
+	ip route replace default via 10.0.8.1
 	tail -f $WORK_DIR/stunnel.log &
 fi
-
 while [ true ] ; do
 	read -t 3 -n 1
-	if [ $? = 0 ] ; then
-		sudo kill $PPPD_PID 2>/dev/null
-		kill $(cat $WORK_DIR/stunnel.pid) 2>/dev/null
-		rm -r "$WORK_DIR"
+	if [ \$? = 0 ] ; then
+		echo "Exiting on user input"
+		kill \$PPPD_PID 2>/dev/null
+		kill \$(cat $WORK_DIR/stunnel.pid) 2>/dev/null
+		rm -r $WORK_DIR
 		exit
 	else
 		# This is another very hacky solution to another problem
 		# When client disconnects, pppd restarts socat, recreating socket file.
-		if [ ! -O $WORK_DIR/pppd.sock ]; then sudo chown $USER:$USER $WORK_DIR/pppd.sock; fi
+		if [ ! -O $WORK_DIR/pppd.sock ]; then chown $USER:$USER $WORK_DIR/pppd.sock; fi
 	fi
 done
+EOT
+
+chmod +x $WORK_DIR/pppd_worker.sh
+sudo $WORK_DIR/pppd_worker.sh
+
 
 trap ' ' INT
