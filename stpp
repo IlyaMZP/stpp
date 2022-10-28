@@ -8,66 +8,67 @@ CERTMGR="/opt/cprocsp/bin/amd64/certmgr"
 PATH=$PATH:/usr/sbin/
 
 # Default values
+LOG_MODE=0
 VERIFY=0
 PORT=1234
 SERVER=0
 
-# https://stackoverflow.com/questions/192249/how-do-i-parse-command-line-arguments-in-bash
-# I'd love to have values space separated
-# But that's a task for a future me
-# TODO: Allow user to specify values without = sign
-for i in "$@"; do
-  case $i in
-    -c=*|--certificate=*)
-      CERTIFICATE="${i#*=}"
-      shift # past argument=value
-      ;;
-    -a=*|--addr=*)
-      HOST="${i#*=}"
-      shift # past argument=value
-      ;;
-    -p=*|--port=*)
-      PORT="${i#*=}"
-      shift # past argument=value
-      ;;
-    -v=*|--verify=*)
-      VERIFY="${i#*=}"
-      shift # past argument=value
-      ;;
-    --server)
-      SERVER=1
-      shift # past argument with no value
-      ;;
-    --stop)
-      rm /tmp/.sttp.lock 2>/dev/null
-      exit 0
-      shift
-      ;;
-    --log)
-      if [ -f /tmp/.sttp.lock ]; then
-		tail -f $(cat /tmp/.sttp.lock 2>/dev/null)/stunnel.log
-      fi
-      exit 0
-      shift
-      ;;
-    --help)
-      echo "  -c=, --certificate=<cert> - Specify the certificate path or thumbprint"
-      echo "  -a=, --addr=<address>     - Specify the address or hostname of server (client mode)"
-      echo "  -p=, --port=<port>        - Specify the server/client port number"
-      echo "  -v=, --verify=<level>     - Specify the verify level for stunnel"
-      echo "  --server                  - Start in server mode"
-      echo "  --log                     - Follow stunnel logs"
-      echo "  --stop                    - Sends a shutdown signal"
-      exit 0
-      ;;
-    -*|--*)
-      echo "Unknown option $i"
-      exit 1
-      ;;
-    *)
-      ;;
-  esac
+usage() {
+	echo "\
+	stpp [OPTION...]
+	-s, --server; Start in server mode
+	-c, --certificate; Specify the certificate path or thumbprint
+	-a, --addr; Specify the address or hostname of server (client mode)
+	-p, --port; Specify the server/client port number
+	-v, --verify; Specify the verify level for stunnel
+	-k, --kill; Sends a shutdown signal
+	-l, --log; Follow stunnel logs
+	" | column -t -s ";"
+}
+
+
+error() {
+    echo "stpp: invalid option -- '$1'";
+    echo "Try 'stpp -h' for more information.";
+    exit 1;
+}
+
+opts="scpavkl:"
+
+# Thanks to https://gist.github.com/shakefu/2765260
+# Works great for parsing arguments
+for pass in 1 2; do
+    while [ -n "$1" ]; do
+        case $1 in
+            --) shift; break;;
+            -*) case $1 in
+                -s|--server)      SERVER=1;;
+                -c|--certificate) CERTIFICATE=$2; shift;;
+                -p|--port)        PORT=$2; shift;;
+                -a|--addr)        HOST=$2; shift;;
+                -v|--verify)      VERIFY=$2; shift;;
+                -k|--kill)        rm /tmp/.sttp.lock 2>/dev/null; exit 0 ;;
+                -l|--log)         LOG_MODE=1;;
+                --*)           error $1;;
+                -*)            if [ $pass -eq 1 ]; then ARGS="$ARGS $1";
+                               else error $1; fi;;
+                esac;;
+            *)  if [ $pass -eq 1 ]; then ARGS="$ARGS $1";
+                else error $1; fi;;
+        esac
+        shift
+    done
+    if [ $pass -eq 1 ]; then ARGS=`getopt $opts $ARGS`
+        if [ $? != 0 ]; then usage; exit 2; fi; set -- $ARGS
+    fi
 done
+
+if [ "$LOG_MODE" -eq 1 ]; then
+	if [ -f /tmp/.sttp.lock ]; then
+		tail -f $(cat /tmp/.sttp.lock 2>/dev/null)/stunnel.log
+	fi
+	exit 0
+fi
 
 if [ -f /tmp/.sttp.lock ] ; then
 	echo "The stpp daemon is already running"
@@ -177,5 +178,4 @@ done
 EOT
 
 echo $WORK_DIR > /tmp/.sttp.lock
-
 sudo sh -c "chmod +x $WORK_DIR/pppd_worker.sh && exec bash $WORK_DIR/pppd_worker.sh & disown"
